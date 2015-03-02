@@ -1,4 +1,6 @@
-arduino_port:       /dev/tty.usbmodem1411
-arduino_baudrate:   19200
+arduino_port:       /dev/ttyUSB0
+arduino_baudrate:   9600
+sensor_port:        /dev/ttyUSB1
+sensor_baudrate:    115200
 
 webserver_port:     8081

@@ -14,30 +14,35 @@ def command_reader():
     while True:
         try:
             a = dataQ.get()
-            if len(a) > 1:
+            #logging.debug("processing: {}".format(a))
+            items = a[1].strip().split(",")
+            """sample: 3,5,245,0"""
+            if len(items) == 4:
+                #logging.info("Parsed values: {}".format(items))
                 d_time = datetime.datetime.fromtimestamp(a[0])
                 time_formatted = d_time.strftime('%H:%M:%S')
                 lines.append("{}: {}".format(time_formatted, str(a[1]).strip()))                
-                # now parse the command:                
-                text_contents = a[1].strip()
-                logging.debug("Processing packet: {}".format(text_contents))                
-                if text_contents[:2] != "[[" or text_contents[-2:] != "]]":
-                    raise Exception(
-                        "Invalid packet start {}".format(text_contents))
-                readings = text_contents[2:-2].split(";")
-                for i, reading in enumerate(readings):
-                    if reading.strip():
-                        try:                        
-                            key = "A{}".format(i)
-                            store_read(key, float(reading))               
-                        except ValueError, e:
-                            logging.debug("Error parsing: {}".format(e))
-                            # invalid combination, ignore..
-                            # TODO paste error message..
-                            continue                
                         
         except Exception as e:
             logging.info("Unable to parse packet: {}".format(e))
+
+
+def command_reader2():
+    while True:
+        try:
+            a = dataQ2.get()
+            logging.debug("processing: {}".format(a))
+            items = a[1].strip().split(",")
+            """sample: 3,5,245,0"""
+            if len(items) == 4:
+                logging.info("Parsed values: {}".format(items))
+                d_time = datetime.datetime.fromtimestamp(a[0])
+                time_formatted = d_time.strftime('%H:%M:%S')
+                lines.append("Q2{}: {}".format(time_formatted, str(a[1]).strip()))                
+                        
+        except Exception as e:
+            logging.info("Q2Unable to parse packet: {}".format(e))
+
 
 
 ##### command sending dispatcher
@@ -50,9 +55,20 @@ class GenericCommandWrapper(object):
         pass
     
     def run_action(self):
-        text = "Hello world"
-        ser.write(text)
+        text = "y"
+        ser_send.write(text)
         logging.debug("Command sent {}".format(text))   
+
+class GenericCommandWrapper2(object):   
+    
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    def run_action(self):
+        text = "x"
+        ser_send.write(text)
+        logging.debug("Command sent {}".format(text))   
+
  
 
 def command_sender():
@@ -76,7 +92,7 @@ def command_sender():
             logging.warn(msg)
             logging.exception(e)
         # wait between issuing commands
-        time.sleep(5)
+        time.sleep(0.1)
 
 
 
@@ -125,7 +141,10 @@ def read_out():
 @route('/button/<num>')
 def button(num):
     logging.info("Button {} pressed".format(num))
-    command = GenericCommandWrapper()
+    if (num == "1"):
+        command = GenericCommandWrapper()
+    if (num == "2"):
+        command = GenericCommandWrapper2()
     command_q.append(command)      
     return hello()
 
@@ -139,6 +158,7 @@ def hello(name='World'):
 
 
 from serialreader import IRSerialCommunicator
+from serialreader2 import IRSerialCommunicator as IRComm2
 
 if __name__ == "__main__":
     
@@ -153,9 +173,11 @@ if __name__ == "__main__":
     # command and error queues
     dataQ = Queue.Queue(maxsize=100)
     errQ = Queue.Queue(maxsize=100)
+    dataQ2 = Queue.Queue(maxsize=100)
+    errQ2 = Queue.Queue(maxsize=100)
 
     # serial port monitoring
-    mock_serial = True
+    mock_serial = False
     if mock_serial:
         import os, pty, serial
         master, slave = pty.openpty()
@@ -164,9 +186,19 @@ if __name__ == "__main__":
     else:
         ser = IRSerialCommunicator(
             dataQ, errQ, 
+            port=CONFIG["sensor_port"], baudrate=CONFIG["sensor_baudrate"])
+        ser.daemon = True
+        ser.start()      
+        
+        ser_send = IRComm2(
+            dataQ2, errQ2,
             port=CONFIG["arduino_port"], baudrate=CONFIG["arduino_baudrate"])
-    ser.daemon = True
-    ser.start()
+        ser_send.daemon = True
+        ser_send.start()  
+
+
+    logging.info(CONFIG)
+
     
         
     # start command reader
@@ -175,6 +207,12 @@ if __name__ == "__main__":
          t = threading.Thread(target=command_reader)
          t.daemon = True
          t.start()
+    
+    t = threading.Thread(target=command_reader2)
+    t.daemon = True
+    t.start()
+         
+        
     
     # start command dispatcher    
     sender = threading.Thread(target=command_sender)

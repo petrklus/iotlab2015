@@ -23,7 +23,7 @@ logging.basicConfig(filename=__file__.replace('.py','.log'),level=logging.DEBUG,
 class IRSerialCommunicator(threading.Thread):
     def __init__(self, dataQ, errQ, port, baudrate=19200):
         self.logger = logging.getLogger('IRSerialCommunicator')
-        self.logger.debug('initializing')
+        self.logger.debug('initializing {} {}'.format(port, baudrate))
         threading.Thread.__init__(self)
         self.port = port
         self.baudrate = baudrate
@@ -225,58 +225,3 @@ def command_reader():
 The THERM200 is a soil temperature probe, which has a temperature span from -40°C to 85°C.  It outputs a voltage linearly proportional to the temperature, so no complex equations are required, to calculate the temperature from voltage.  It is highly accurate with 0.125°C of resolution.
 The sensor has a simple 3 wire interface: ground, power, and output,  and  is powered from 3.3V to 20VDC, and outputs a voltage 0 to 3V. Where 0 represents -40°C and 3V represents 85°.
 """
-get_voltage = lambda x: x * (5.0 / 1023.0)
-get_temp = lambda x: get_voltage(x) * 125/3.0 -40
-if __name__=="__main__":    
-    import pprint
-    logger = logging.getLogger()
-    logger.setLevel(logging.WARN) # logging.DEBUG
-    print "Arduino loader loading..."
-        
-    # read config parameters
-    try: 
-        # load up defaults
-        with open("config-defaults.yaml") as fp:
-            CONFIG = yaml.safe_load(fp)
-        
-        # load overrides
-        with open("config.yaml") as fp:
-            # over-write anything in config.yaml
-            for key, val in yaml.safe_load(fp).iteritems():                
-                CONFIG[key] = val
-        
-        logging.info("Config loaded: {}".format(pprint.pformat(CONFIG)))
-        print "Config loaded:"
-        pprint.pprint(CONFIG)
-    except Exception, e:
-        logging.exception("Unable to read config, please create config.yaml following a sample")
-        sys.exit(1)
-    
-    
-    # TODO make this configurable
-    dataQ = Queue.Queue(maxsize=100)
-    errQ = Queue.Queue(maxsize=100)
-
-    mock_serial = False
-    if mock_serial:
-        import os, pty, serial
-        master, slave = pty.openpty()
-        s_name = os.ttyname(slave)
-        ser = IRSerialCommunicator(dataQ, errQ, port=s_name, baudrate=9600)
-    else:
-        ser = IRSerialCommunicator(
-            dataQ, errQ, 
-            port=CONFIG["arduino_port"], baudrate=CONFIG["arduino_baudrate"])
-    ser.daemon = True
-    ser.start()
-        
-    # start command reader
-    num_worker_threads = 1
-    for i in range(num_worker_threads):
-         t = threading.Thread(target=command_reader)
-         t.daemon = True
-         t.start()
-    
-    # run webserver to get status/log messages
-    # run(server='cherrypy', host='0.0.0.0', port=8080)
-    run(host='0.0.0.0', port=CONFIG["webserver_port"])
