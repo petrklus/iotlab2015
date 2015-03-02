@@ -53,10 +53,10 @@ def command_reader():
                     has_alarm = reduce(lambda c, x: c or x>20, diffs, False)
                     return has_alarm
                 
-                alarm_frames = sum([get_alarm(1), get_alarm(2), get_alarm(3)])
+                alarm_frames = sum([get_alarm(1), get_alarm(2), get_alarm(3), get_alarm(4), get_alarm(5)])
                 
                 # threshold
-                has_alarm = alarm_frames >= 2
+                has_alarm = alarm_frames >= 3
                 if has_alarm:                
                     if not prev_alarm_state:
                         logging.info("Motion alarm")
@@ -183,9 +183,24 @@ def button(num):
     logging.info("Button {} pressed".format(num))
     if (num == "1"):
         command = GenericCommandWrapper()
+        command_q.append(command)      
+        
     if (num == "2"):
         command = GenericCommandWrapper2()
-    command_q.append(command)      
+        command_q.append(command)      
+        
+    if num == "3":
+        if main_state["armed"]:
+            main_state["armed"] = False
+            d_time = datetime.datetime.now()
+            time_formatted = d_time.strftime('%H:%M:%S')            
+            lines.append("{}: {}".format(time_formatted, "Alarm disarmed")) 
+        else:
+            main_state["armed"] = True
+            d_time = datetime.datetime.now()
+            time_formatted = d_time.strftime('%H:%M:%S')            
+            lines.append("{}: {}".format(time_formatted, "Alarm armed")) 
+    
     return hello()
 
 
