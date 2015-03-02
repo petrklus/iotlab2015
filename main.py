@@ -10,18 +10,61 @@ logging.basicConfig(level=logging.DEBUG)
 
 lines = collections.deque(maxlen=50)
 
+prev_button_state = False
+prev_alarm_state  = False
+accel_info = collections.deque(maxlen=10)
+
+
+main_state = {    
+    "armed" : False,
+    "motion_alarm": False,        
+}
+
 def command_reader():
     while True:
         try:
+            global accel_info, prev_alarm_state, prev_button_state, main_state
             a = dataQ.get()
             #logging.debug("processing: {}".format(a))
             items = a[1].strip().split(",")
             """sample: 3,5,245,0"""
-            if len(items) == 4:
-                #logging.info("Parsed values: {}".format(items))
+            if len(items) == 4:                                        
+                logging.info("Parsed values: {}".format(items))
                 d_time = datetime.datetime.fromtimestamp(a[0])
                 time_formatted = d_time.strftime('%H:%M:%S')
-                lines.append("{}: {}".format(time_formatted, str(a[1]).strip()))                
+#                lines.append("{}: {}".format(time_formatted, str(a[1]).strip()))                
+
+                x, y, z, but = items
+                
+                if but == "1":                
+                    if not prev_button_state:
+                        logging.info("button event")
+                        lines.append("{}: {}".format(time_formatted, "BUTTON PRESS"))                                        
+                        prev_button_state = True
+                else:
+                    prev_button_state = False
+                
+                
+                accel_info.append([x, y, z])                
+                
+                i = 0
+                def get_alarm(i):
+                    diffs = map(lambda (a, b): abs(int(a)-int(b)), zip(accel_info[-i], accel_info[-(i+1)]))
+                    has_alarm = reduce(lambda c, x: c or x>20, diffs, False)
+                    return has_alarm
+                
+                alarm_frames = sum([get_alarm(1), get_alarm(2), get_alarm(3)])
+                
+                # threshold
+                has_alarm = alarm_frames >= 2
+                if has_alarm:                
+                    if not prev_alarm_state:
+                        logging.info("Motion alarm")
+                        lines.append("{}: {}".format(time_formatted, "MOTION ALARM"))                                        
+                        prev_alarm_state = True
+                else:
+                    prev_alarm_state = False
+                
                         
         except Exception as e:
             logging.info("Unable to parse packet: {}".format(e))
@@ -34,11 +77,9 @@ def command_reader2():
             logging.debug("processing: {}".format(a))
             items = a[1].strip().split(",")
             """sample: 3,5,245,0"""
-            if len(items) == 4:
-                logging.info("Parsed values: {}".format(items))
-                d_time = datetime.datetime.fromtimestamp(a[0])
-                time_formatted = d_time.strftime('%H:%M:%S')
-                lines.append("Q2{}: {}".format(time_formatted, str(a[1]).strip()))                
+            d_time = datetime.datetime.fromtimestamp(a[0])
+            time_formatted = d_time.strftime('%H:%M:%S')            
+            lines.append("{}:ARD {}".format(time_formatted, str(a[1]).strip()))                            
                         
         except Exception as e:
             logging.info("Q2Unable to parse packet: {}".format(e))
@@ -80,7 +121,7 @@ def command_sender():
                 break # break out of the fetching loop, we have item
             except IndexError:
                 # wait for tiny bit between checking
-                time.sleep(0.1)
+                time.sleep(0.01)
                 # continue
                 continue
         # TODO try twice/check confirmation?
@@ -92,8 +133,7 @@ def command_sender():
             logging.warn(msg)
             logging.exception(e)
         # wait between issuing commands
-        time.sleep(0.1)
-
+        time.sleep(0.01)
 
 
 
