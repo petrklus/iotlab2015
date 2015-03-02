@@ -182,5 +182,5 @@ if __name__ == "__main__":
     sender.start()
     
     
-    run(host='localhost', port=CONFIG["webserver_port"])
+    run(host='0.0.0.0', port=CONFIG["webserver_port"])
 
